@@ -23,7 +23,6 @@ class MemesFragment : Fragment() {
 
     companion object {
         const val SORTING_TYPE_KEY = "sorting"
-        const val PAGING_THRESHOLD = 4
         fun newInstance(sortingType: SortingType): MemesFragment {
             val fragment = MemesFragment()
             val bundle = Bundle()
@@ -34,7 +33,7 @@ class MemesFragment : Fragment() {
     }
 
     private val viewModel: MemesViewModel by viewModels {
-        MemesViewModel.Factory(
+        MemesViewModelImpl.Factory(
             (activity?.application as MyApp).appComponent.memesViewModelAssistedFactory(),
             savedSortingType
         )
@@ -60,32 +59,30 @@ class MemesFragment : Fragment() {
     ): View {
         _binding = FragmentMemesBinding.inflate(inflater, container, false)
         viewModel.loadMemes()
-        if (viewModel.position == 0)
-            binding.buttonBack.isEnabled = false
         viewModel.items.observe(viewLifecycleOwner) {
-            showItem()
+            val position = viewModel.position.value
+            if (position != null)
+                showItem(it[position])
         }
         binding.buttonNext.setOnClickListener {
-            viewModel.position += 1
-            showItem()
-            binding.buttonBack.isEnabled = true
-            if (viewModel.pagingStatus.value == PagingStatus.READY
-                && viewModel.position >= viewModel.memes.size - PAGING_THRESHOLD
-            )
-                viewModel.loadMemes()
+            viewModel.nextItem()
         }
         binding.buttonBack.setOnClickListener {
-            viewModel.position -= 1
-            showItem()
-            if (viewModel.position == 0)
-                binding.buttonBack.isEnabled = false
+            viewModel.previousItem()
         }
         binding.loadingOrError.retryButton.setOnClickListener { viewModel.loadMemes() }
+        viewModel.position.observe(viewLifecycleOwner) {
+            binding.buttonBack.isEnabled = it != 0
+            val items = viewModel.items.value
+            if (items != null) {
+                binding.buttonNext.isEnabled = it < items.size
+                showItem(items[it])
+            }
+        }
         return binding.root
     }
 
-    private fun showItem() {
-        val item = viewModel.items.value!![viewModel.position]
+    private fun showItem(item: Any) {
         hideLoadingOrError()
         when (item) {
             is MemeModel -> {
